@@ -284,6 +284,14 @@ class Converter:
         return ChatCmplHelpers.convert_url_citations(message.annotations)
 
     @classmethod
+    def apply_message_name(cls, source: Mapping[str, Any], message: dict[str, Any]) -> None:
+        # name 是用于区分同一 role 下参与方的合法字段，而响应式中间表示未声明它；
+        # 不透传会让按 name 注入的消息在转换后静默丢掉来源标识
+        name = source.get("name")
+        if isinstance(name, str) and name:
+            message["name"] = name
+
+    @classmethod
     def maybe_easy_input_message(cls, item: Any) -> EasyInputMessageParam | None:
         if not isinstance(item, dict):
             return None
@@ -291,7 +299,7 @@ class Converter:
         keys = set(item)
         if not {"content", "role"} <= keys:
             return None
-        if not keys <= {"content", "role", "type", "phase"}:
+        if not keys <= {"content", "role", "type", "phase", "name"}:
             return None
         if "type" in item and item["type"] != "message":
             return None
@@ -684,6 +692,7 @@ class Converter:
                         "role": "user",
                         "content": cls.extract_all_content(content),
                     }
+                    cls.apply_message_name(easy_msg, msg_user)
                     result.append(msg_user)
                 elif role == "system":
                     flush_assistant_message()
@@ -705,6 +714,7 @@ class Converter:
                         "role": "assistant",
                         "content": cls.extract_text_content(content),
                     }
+                    cls.apply_message_name(easy_msg, msg_assistant)
                     result.append(msg_assistant)
                 else:
                     raise UserError(f"Unexpected role in easy_input_message: {role}")
@@ -720,6 +730,7 @@ class Converter:
                         "role": "user",
                         "content": cls.extract_all_content(content),
                     }
+                    cls.apply_message_name(in_msg, msg_user)
                     result.append(msg_user)
                 elif role == "system":
                     msg_system = {
